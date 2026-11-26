@@ -1,0 +1,2 @@
+ALTER TABLE products ADD COLUMN IF NOT EXISTS company_contact VARCHAR(160) NULL;
+ALTER TABLE stock_movements ADD COLUMN IF NOT EXISTS partner_contact VARCHAR(160) NULL;

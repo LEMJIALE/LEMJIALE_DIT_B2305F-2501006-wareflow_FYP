@@ -1,0 +1,27 @@
+<?php require_once __DIR__.'/../config/database.php';require_once __DIR__.'/../includes/auth.php';require_roles('Maintenance Staff');$id=(int)($_GET['id']??0);$s=$pdo->prepare('SELECT * FROM work_orders WHERE id=? AND assigned_to=? AND status=\'In Progress\'');$s->execute([$id,$_SESSION['user']['id']]);$w=$s->fetch(PDO::FETCH_ASSOC);if(!$w)exit('Work order not found.');if($_SERVER['REQUEST_METHOD']==='POST'){verify_csrf();$status=$_POST['status'];$pdo->prepare('UPDATE work_orders SET status=?,repair_notes=?,completion_date=? WHERE id=?')->execute([$status,$_POST['repair_notes'],$status==='Completed'?date('Y-m-d'):null,$id]);if($status==='Completed'){$pdo->prepare('INSERT INTO maintenance_records(equipment_id,work_order_id,technician_id,maintenance_date,problem_description,action_taken,status,labour_cost,parts_cost,other_cost,total_cost) VALUES(?,?,?,?,?,?,?,?,?,?,?)')->execute([$w['equipment_id'],$id,$_SESSION['user']['id'],date('Y-m-d'),$w['problem_description'],$_POST['repair_notes'],'Completed',(float)$_POST['labour_cost'],(float)$_POST['parts_cost'],(float)$_POST['other_cost'],(float)$_POST['labour_cost']+(float)$_POST['parts_cost']+(float)$_POST['other_cost']]);$pdo->prepare("UPDATE maintenance_requests SET status='Completed' WHERE id=?")->execute([$w['request_id']]);$pdo->prepare("UPDATE equipment SET status='Operational' WHERE id=?")->execute([$w['equipment_id']]);}flash('Work order updated.');header('Location:work_orders.php');exit;}$page_title='Update Work Order';require __DIR__.'/../includes/header.php';?>
+<style>
+.repair-section-title{display:flex;align-items:center;gap:10px;margin-bottom:20px;font-size:16px;font-weight:700}
+.repair-section-title i{display:grid;place-items:center;width:36px;height:36px;background:#fff0d8;color:#a85b00;border-radius:10px}
+.repair-total{background:#18212b;border-radius:12px;padding:22px;color:#fff}
+.repair-total strong{display:block;color:#ffb347;font-size:30px;margin-top:6px}
+.repair-cost-prefix{background:#fff2dd;color:#875000;font-weight:700;border-color:#dfe5ea}
+</style>
+<div class="d-flex justify-content-between align-items-start gap-3 mb-4"><div><h1 class="page-heading">Update Work Order</h1><p class="page-subtitle mb-0"><?=e($w['work_order_code'])?> · Record repair progress and costs</p></div><a class="btn btn-outline-secondary" href="work_orders.php"><i class="bi bi-arrow-left me-1"></i>Back to Work Orders</a></div>
+<form method="post" id="repairUpdateForm"><input type="hidden" name="csrf" value="<?=csrf_token()?>">
+<div class="row g-4"><div class="col-lg-8">
+<div class="panel mb-4"><h2 class="repair-section-title"><i class="bi bi-wrench-adjustable"></i>Repair Status</h2><div class="row g-3"><div class="col-md-6"><label class="form-label" for="repairStatus">Status</label><select class="form-select" name="status" id="repairStatus"><option>In Progress</option><option>Completed</option><option>Cancelled</option></select></div><div class="col-12"><div class="rounded p-3 bg-light"><div class="small text-muted mb-1">Reported Problem</div><div style="white-space:pre-wrap"><?=e($w['problem_description'])?></div></div></div></div></div>
+<div class="panel mb-4"><h2 class="repair-section-title"><i class="bi bi-cash-stack"></i>Repair Costs <span class="text-muted small fw-normal">(MYR)</span></h2><div class="row g-3">
+<?php foreach(['labour_cost'=>'Labour Cost','parts_cost'=>'Parts Cost','other_cost'=>'Other Cost'] as $field=>$label):?><div class="col-md-4"><label class="form-label" for="<?=e($field)?>"><?=e($label)?></label><div class="input-group"><span class="input-group-text repair-cost-prefix">RM</span><input class="form-control repair-cost" id="<?=e($field)?>" name="<?=e($field)?>" type="number" min="0" step="0.01" value="" inputmode="decimal" required></div></div><?php endforeach?>
+</div><p class="small text-muted mt-3 mb-0">Enter 0.00 if there is no charge.</p></div>
+<div class="panel"><h2 class="repair-section-title"><i class="bi bi-journal-text"></i>Repair Notes</h2><label class="form-label" for="repairNotes">Work Performed <span class="text-danger">*</span></label><textarea class="form-control" id="repairNotes" name="repair_notes" rows="5" required placeholder="Describe the work performed, parts replaced and test results."><?=e($w['repair_notes'])?></textarea></div>
+</div><div class="col-lg-4"><div class="repair-total mb-3"><div class="small">Total Repair Cost</div><strong id="repairTotal" aria-live="polite">RM 0.00</strong><div class="small mt-2" style="color:#bac5cf">Labour + Parts + Other costs</div></div><div class="panel"><h2 class="h6 mb-3">Save Repair Update</h2><p class="small text-muted">Completing this work order adds the repair record and costs to the equipment maintenance history.</p><button class="btn btn-primary w-100" type="submit"><i class="bi bi-check2-circle me-1"></i>Save Update</button><a class="btn btn-light w-100 mt-2" href="work_orders.php">Cancel</a></div></div></div></form>
+<script>
+const repairCostInputs=document.querySelectorAll('.repair-cost');
+function updateRepairTotal(){
+ const total=Array.from(repairCostInputs).reduce((sum,input)=>sum+Math.round((Number(input.value)||0)*100),0)/100;
+ document.getElementById('repairTotal').textContent='RM '+total.toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+repairCostInputs.forEach(input=>input.addEventListener('input',updateRepairTotal));
+updateRepairTotal();
+</script>
+<?php require __DIR__.'/../includes/footer.php'; ?>

@@ -1,0 +1,1 @@
+<?php require_once __DIR__.'/../config/database.php';require_once __DIR__.'/../includes/auth.php';require_system_admin();if($_SERVER['REQUEST_METHOD']!=='POST')exit('Invalid request.');verify_csrf();$pdo->prepare('DELETE FROM equipment WHERE id=?')->execute([(int)$_POST['id']]);flash('Equipment deleted.');header('Location:index.php');
